@@ -8,7 +8,6 @@
 
 #import "TKAutoReplyWindowController.h"
 #import "TKAutoReplyContentView.h"
-#import "WeChatPlugin.h"
 #import "TKAutoReplyCell.h"
 
 @interface TKAutoReplyWindowController () <NSWindowDelegate, NSTableViewDelegate, NSTableViewDataSource>
@@ -17,6 +16,7 @@
 @property (nonatomic, strong) TKAutoReplyContentView *contentView;
 @property (nonatomic, strong) NSButton *addButton;
 @property (nonatomic, strong) NSButton *reduceButton;
+@property (nonatomic, strong) NSButton *enableButton;
 @property (nonatomic, strong) NSAlert *alert;
 
 @property (nonatomic, strong) NSMutableArray *autoReplyModels;
@@ -62,7 +62,7 @@
         tableView.delegate = self;
         tableView.dataSource = self;
         NSTableColumn *column = [[NSTableColumn alloc] init];
-        column.title = @"自动回复列表";
+        column.title = TKLocalizedString(@"assistant.autoReply.list");
         column.width = 200;
         [tableView addTableColumn:column];
         
@@ -94,11 +94,19 @@
         btn;
     });
     
+    self.enableButton = ({
+        NSButton *btn = [NSButton tk_checkboxWithTitle:TKLocalizedString(@"assistant.autoReply.enable") target:self action:@selector(clickEnableBtn:)];
+        btn.frame = NSMakeRect(130, 20, 130, 20);
+        btn.state = [[TKWeChatPluginConfig sharedConfig] autoReplyEnable];
+        
+        btn;
+    });
+    
     self.alert = ({
         NSAlert *alert = [[NSAlert alloc] init];
-        [alert addButtonWithTitle:@"确定"];
-        [alert setMessageText:@"您还有一条自动回复设置未完成"];
-        [alert setInformativeText:@"请完善未完成的自动回复设置"];
+        [alert addButtonWithTitle:TKLocalizedString(@"assistant.autoReply.alert.confirm")];
+        [alert setMessageText:TKLocalizedString(@"assistant.autoReply.alert.title")];
+        [alert setInformativeText:TKLocalizedString(@"assistant.autoReply.alert.content")];
         
         alert;
     });
@@ -108,11 +116,12 @@
     [self.window.contentView addSubviews:@[scrollView,
                                            self.contentView,
                                            self.addButton,
-                                           self.reduceButton]];
+                                           self.reduceButton,
+                                           self.enableButton]];
 }
 
 - (void)setup {
-    self.window.title = @"自动回复设置";
+    self.window.title = TKLocalizedString(@"assistant.autoReply.title");
     self.window.contentView.layer.backgroundColor = [kBG1 CGColor];
     [self.window.contentView.layer setNeedsDisplay];
     
@@ -127,15 +136,23 @@
             [weakSelf.tableView selectRowIndexes:[NSIndexSet indexSetWithIndex:weakSelf.lastSelectIndex] byExtendingSelection:YES];
         }
     };
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(windowShouldClosed:) name:NSWindowWillCloseNotification object:nil];
 }
 
 /**
  关闭窗口事件
  
  */
-- (BOOL)windowShouldClose:(id)sender {
+- (void)windowShouldClosed:(NSNotification *)notification {
+    if (notification.object != self.window) {
+        return;
+    }
     [[TKWeChatPluginConfig sharedConfig] saveAutoReplyModels];
-    return YES;
+
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 #pragma mark - addButton & reduceButton ClickAction
@@ -183,6 +200,10 @@
             [self.tableView selectRowIndexes:[NSIndexSet indexSetWithIndex:self.autoReplyModels.count - 1] byExtendingSelection:YES];
         }
     }
+}
+
+- (void)clickEnableBtn:(NSButton *)btn {
+    [[NSNotificationCenter defaultCenter] postNotificationName:NOTIFY_AUTO_REPLY_CHANGE object:nil];
 }
 
 #pragma mark - NSTableViewDataSource && NSTableViewDelegate
